@@ -1,27 +1,18 @@
-# Archived project. No maintenance. 
-This project is not maintained anymore and is archived. Feel free to fork and
-use make your own changes if needed.
+# Fork of an archived project. Minimal maintenance. 
+This project is a fork of github.com/fatih/pool. It was forked so that it could become a Go module. Since Go module versions are largely incompatible with previously understood vendor tool ideas about semantic versions, the previous v1.0.0, v2.0.0, and v3.0.0 tags have also been deleted. There is now only a single version, which is v0.1.0.
 
 Thanks all for their work on this project. 
 
-# Pool [![GoDoc](http://img.shields.io/badge/go-documentation-blue.svg?style=flat-square)](https://godoc.org/github.com/fatih/pool) [![Build Status](http://img.shields.io/travis/fatih/pool.svg?style=flat-square)](https://travis-ci.org/fatih/pool)
-
-
 Pool is a thread safe connection pool for net.Conn interface. It can be used to
 manage and reuse connections.
-
 
 ## Install and Usage
 
 Install the package with:
 
 ```bash
-go get github.com/fatih/pool
+go get github.com/echlebek/pool
 ```
-
-Please vendor the package with one of the releases: https://github.com/fatih/pool/releases.
-`master` branch is **development** branch and will contain always the latest changes.
-
 
 ## Example
 
