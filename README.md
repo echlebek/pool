@@ -1,5 +1,5 @@
 # Fork of an archived project. Minimal maintenance. 
-This project is a fork of github.com/fatih/pool. It was forked so that it could become a Go module. Since Go module versions are largely incompatible with previously understood vendor tool ideas about semantic versions, the previous v1.0.0, v2.0.0, and v3.0.0 tags have also been deleted. There is now only a single version, which is v0.1.0.
+This project is a fork of github.com/fatih/pool. It was forked so that it could become a Go module. Since Go module versions are largely incompatible with previously understood vendor tool ideas about semantic versions, the previous v1.0.0, v2.0.0, and v3.0.0 tags have also been deleted. The module's versions now begin at v0.1.0.
 
 Thanks all for their work on this project. 
 
