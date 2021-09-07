@@ -1,0 +1,51 @@
+name: Go Test
+
+on: [push]
+
+jobs:
+  test:
+    name: Test Go 1.15
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Set up Go 1.16
+      uses: actions/setup-go@v1
+      with:
+        go-version: 1.16
+      id: go
+    - name: Test Go 1.17
+      run: go test -race -v ./...
+    name: Test Go 1.16
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Set up Go 1.16
+      uses: actions/setup-go@v1
+      with:
+        go-version: 1.16
+      id: go
+    - name: Test Go 1.17
+      run: go test -race -v ./...
+    name: Test Go 1.17
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Set up Go 1.17
+      uses: actions/setup-go@v1
+      with:
+        go-version: 1.17
+      id: go
+    - name: Test
+      run: go test -race -v ./...
