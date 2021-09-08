@@ -87,7 +87,7 @@ func TestPool_Get(t *testing.T) {
 }
 
 func TestPool_Put(t *testing.T) {
-	p, err := NewChannelPool(0, 30, factory)
+	p, err := NewPool(0, 30, factory)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,13 +162,11 @@ func TestPool_Close(t *testing.T) {
 	// now close it and test all cases we are expecting.
 	p.Close()
 
-	c := p.(*channelPool)
-
-	if c.conns != nil {
+	if p.conns != nil {
 		t.Errorf("Close error, conns channel should be nil")
 	}
 
-	if c.factory != nil {
+	if p.factory != nil {
 		t.Errorf("Close error, factory should be nil")
 	}
 
@@ -208,7 +206,7 @@ func TestPoolConcurrent(t *testing.T) {
 }
 
 func TestPoolWriteRead(t *testing.T) {
-	p, _ := NewChannelPool(0, 30, factory)
+	p, _ := NewPool(0, 30, factory)
 
 	conn, _ := p.Get()
 
@@ -220,7 +218,7 @@ func TestPoolWriteRead(t *testing.T) {
 }
 
 func TestPoolConcurrent2(t *testing.T) {
-	p, _ := NewChannelPool(0, 30, factory)
+	p, _ := NewPool(0, 30, factory)
 
 	var wg sync.WaitGroup
 
@@ -250,7 +248,7 @@ func TestPoolConcurrent2(t *testing.T) {
 }
 
 func TestPoolConcurrent3(t *testing.T) {
-	p, _ := NewChannelPool(0, 1, factory)
+	p, _ := NewPool(0, 1, factory)
 
 	var wg sync.WaitGroup
 
@@ -267,8 +265,8 @@ func TestPoolConcurrent3(t *testing.T) {
 	wg.Wait()
 }
 
-func newChannelPool() (Pool, error) {
-	return NewChannelPool(InitialCap, MaximumCap, factory)
+func newChannelPool() (*Pool, error) {
+	return NewPool(InitialCap, MaximumCap, factory)
 }
 
 func simpleTCPServer() {

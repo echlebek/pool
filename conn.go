@@ -10,7 +10,7 @@ import (
 type PoolConn struct {
 	net.Conn
 	mu       sync.RWMutex
-	c        *channelPool
+	c        *Pool
 	unusable bool
 }
 
@@ -33,11 +33,4 @@ func (p *PoolConn) MarkUnusable() {
 	p.mu.Lock()
 	p.unusable = true
 	p.mu.Unlock()
-}
-
-// newConn wraps a standard net.Conn to a poolConn net.Conn.
-func (c *channelPool) wrapConn(conn net.Conn) net.Conn {
-	p := &PoolConn{c: c}
-	p.Conn = conn
-	return p
 }
