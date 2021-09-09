@@ -53,6 +53,22 @@ func NewPool(initialCap, maxCap int, factory Factory) (*Pool, error) {
 	return c, nil
 }
 
+// SetCap resizes the pool.
+func (p *Pool) SetCap(capacity int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	oldConns := p.conns
+	close(oldConns)
+	p.conns = make(chan net.Conn, capacity)
+	for c := range oldConns {
+		select {
+		case p.conns <- c:
+		default:
+			return
+		}
+	}
+}
+
 func (c *Pool) getConnsAndFactory() (chan net.Conn, Factory) {
 	c.mu.RLock()
 	conns := c.conns

@@ -336,3 +336,53 @@ func simpleTCPServer() {
 		}()
 	}
 }
+
+func TestPoolSetCap(t *testing.T) {
+	p, err := NewPool(0, 30, factory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+
+	// get/create from the pool
+	conns := make([]net.Conn, MaximumCap)
+	for i := 0; i < MaximumCap; i++ {
+		conn, _ := p.Get(context.Background())
+		conns[i] = conn
+	}
+
+	p.SetCap(15)
+
+	for i := range conns {
+		conns[i].Close()
+	}
+
+	if _, err := p.Get(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPoolSetCapFull(t *testing.T) {
+	p, err := NewPool(0, 30, factory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+
+	// get/create from the pool
+	conns := make([]net.Conn, MaximumCap)
+	for i := 0; i < MaximumCap; i++ {
+		conn, _ := p.Get(context.Background())
+		conns[i] = conn
+	}
+
+	for i := range conns {
+		conns[i].Close()
+	}
+
+	p.SetCap(15)
+
+	if _, err := p.Get(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
