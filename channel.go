@@ -43,11 +43,11 @@ func NewPool(initialCap, maxCap int, factory Factory) (*Pool, error) {
 	// just close the pool error out.
 	for i := 0; i < initialCap; i++ {
 		conn, err := factory()
-		atomic.AddInt64(&p.size, 1)
 		if err != nil {
 			p.Close()
 			return nil, fmt.Errorf("factory is not able to fill the pool: %s", err)
 		}
+		atomic.AddInt64(&p.size, 1)
 		p.conns <- conn
 	}
 
@@ -79,13 +79,13 @@ func (p *Pool) SetCap(capacity int) {
 var errNoCapacity = errors.New("no capacity")
 
 func (p *Pool) tryNewConn() (net.Conn, error) {
-	if atomic.LoadInt64(&p.size) >= int64(cap(p.conns)) {
+	if size := atomic.AddInt64(&p.size, 1); size > int64(cap(p.conns)) {
+		atomic.AddInt64(&p.size, -1)
 		return nil, errNoCapacity
 	}
-
-	atomic.AddInt64(&p.size, 1)
 	conn, err := p.factory()
 	if err != nil {
+		atomic.AddInt64(&p.size, -1)
 		return nil, err
 	}
 
