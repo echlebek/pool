@@ -1,6 +1,7 @@
 package pool
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -9,6 +10,7 @@ import (
 
 // Pool implements a connection pool using buffered channels.
 type Pool struct {
+	size int
 	// storage for our net.Conn connections
 	mu    sync.RWMutex
 	conns chan net.Conn
@@ -40,6 +42,7 @@ func NewPool(initialCap, maxCap int, factory Factory) (*Pool, error) {
 	// just close the pool error out.
 	for i := 0; i < initialCap; i++ {
 		conn, err := factory()
+		c.size++
 		if err != nil {
 			c.Close()
 			return nil, fmt.Errorf("factory is not able to fill the pool: %s", err)
@@ -58,11 +61,31 @@ func (c *Pool) getConnsAndFactory() (chan net.Conn, Factory) {
 	return conns, factory
 }
 
-// Get implements the Pool interfaces Get() method. If there is no new
-// connection available in the pool, a new connection will be created via the
-// Factory() method.
-func (c *Pool) Get() (net.Conn, error) {
-	conns, factory := c.getConnsAndFactory()
+var errNoCapacity = errors.New("no capacity")
+
+func (c *Pool) tryNewConn() (net.Conn, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.size >= cap(c.conns) {
+		return nil, errNoCapacity
+	}
+
+	c.size++
+	conn, err := c.factory()
+	if err != nil {
+		return nil, err
+	}
+
+	return conn, nil
+}
+
+// Get gets a connection from the connection pool. If no connection is available
+// in the pool, but the pool capacity has not been reached yet, it will be
+// created with the factory. If the pool capacity has been reached and no
+// connection is available, then the function will block until a connection
+// is available, or the context is cancelled.
+func (c *Pool) Get(ctx context.Context) (net.Conn, error) {
+	conns, _ := c.getConnsAndFactory()
 	if conns == nil {
 		return nil, ErrClosed
 	}
@@ -77,12 +100,24 @@ func (c *Pool) Get() (net.Conn, error) {
 
 		return c.wrapConn(conn), nil
 	default:
-		conn, err := factory()
-		if err != nil {
+		conn, err := c.tryNewConn()
+		if err == nil {
+			return c.wrapConn(conn), nil
+		}
+		if err != errNoCapacity {
 			return nil, err
+		}
+	}
+	// if we got here, we want to block until a conn becomes available
+	select {
+	case conn := <-conns:
+		if conn == nil {
+			return nil, ErrClosed
 		}
 
 		return c.wrapConn(conn), nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
 }
 
