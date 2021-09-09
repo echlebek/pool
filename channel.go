@@ -98,7 +98,7 @@ func (p *Pool) Get(ctx context.Context) (net.Conn, error) {
 	defer p.mu.RUnlock()
 
 	if p.conns == nil {
-		return nil, errors.New("connection pool closed")
+		return nil, ErrClosed
 	}
 
 	// wrap our connections with out custom net.Conn implementation (wrapConn
