@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"sync/atomic"
 )
 
 // Pool implements a connection pool using buffered channels.
 type Pool struct {
-	size int
+	size int64
 	// storage for our net.Conn connections
 	mu    sync.RWMutex
 	conns chan net.Conn
@@ -33,7 +34,7 @@ func NewPool(initialCap, maxCap int, factory Factory) (*Pool, error) {
 		return nil, errors.New("invalid capacity settings")
 	}
 
-	c := &Pool{
+	p := &Pool{
 		conns:   make(chan net.Conn, maxCap),
 		factory: factory,
 	}
@@ -42,15 +43,15 @@ func NewPool(initialCap, maxCap int, factory Factory) (*Pool, error) {
 	// just close the pool error out.
 	for i := 0; i < initialCap; i++ {
 		conn, err := factory()
-		c.size++
+		atomic.AddInt64(&p.size, 1)
 		if err != nil {
-			c.Close()
+			p.Close()
 			return nil, fmt.Errorf("factory is not able to fill the pool: %s", err)
 		}
-		c.conns <- conn
+		p.conns <- conn
 	}
 
-	return c, nil
+	return p, nil
 }
 
 // SetCap resizes the pool.
@@ -60,34 +61,26 @@ func (p *Pool) SetCap(capacity int) {
 	oldConns := p.conns
 	close(oldConns)
 	p.conns = make(chan net.Conn, capacity)
+	atomic.StoreInt64(&p.size, 0)
 	for c := range oldConns {
 		select {
 		case p.conns <- c:
+			atomic.AddInt64(&p.size, 1)
 		default:
 			return
 		}
 	}
 }
 
-func (c *Pool) getConnsAndFactory() (chan net.Conn, Factory) {
-	c.mu.RLock()
-	conns := c.conns
-	factory := c.factory
-	c.mu.RUnlock()
-	return conns, factory
-}
-
 var errNoCapacity = errors.New("no capacity")
 
-func (c *Pool) tryNewConn() (net.Conn, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.size >= cap(c.conns) {
+func (p *Pool) tryNewConn() (net.Conn, error) {
+	if atomic.LoadInt64(&p.size) >= int64(cap(p.conns)) {
 		return nil, errNoCapacity
 	}
 
-	c.size++
-	conn, err := c.factory()
+	atomic.AddInt64(&p.size, 1)
+	conn, err := p.factory()
 	if err != nil {
 		return nil, err
 	}
@@ -100,25 +93,27 @@ func (c *Pool) tryNewConn() (net.Conn, error) {
 // created with the factory. If the pool capacity has been reached and no
 // connection is available, then the function will block until a connection
 // is available, or the context is cancelled.
-func (c *Pool) Get(ctx context.Context) (net.Conn, error) {
-	conns, _ := c.getConnsAndFactory()
-	if conns == nil {
-		return nil, ErrClosed
+func (p *Pool) Get(ctx context.Context) (net.Conn, error) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	if p.conns == nil {
+		return nil, errors.New("connection pool closed")
 	}
 
 	// wrap our connections with out custom net.Conn implementation (wrapConn
 	// method) that puts the connection back to the pool if it's closed.
 	select {
-	case conn := <-conns:
+	case conn := <-p.conns:
 		if conn == nil {
 			return nil, ErrClosed
 		}
 
-		return c.wrapConn(conn), nil
+		return p.wrapConn(conn), nil
 	default:
-		conn, err := c.tryNewConn()
+		conn, err := p.tryNewConn()
 		if err == nil {
-			return c.wrapConn(conn), nil
+			return p.wrapConn(conn), nil
 		}
 		if err != errNoCapacity {
 			return nil, err
@@ -126,12 +121,12 @@ func (c *Pool) Get(ctx context.Context) (net.Conn, error) {
 	}
 	// if we got here, we want to block until a conn becomes available
 	select {
-	case conn := <-conns:
+	case conn := <-p.conns:
 		if conn == nil {
 			return nil, ErrClosed
 		}
 
-		return c.wrapConn(conn), nil
+		return p.wrapConn(conn), nil
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
@@ -139,15 +134,15 @@ func (c *Pool) Get(ctx context.Context) (net.Conn, error) {
 
 // put puts the connection back to the pool. If the pool is full or closed,
 // conn is simply closed. A nil conn will be rejected.
-func (c *Pool) put(conn net.Conn) error {
+func (p *Pool) put(conn net.Conn) error {
 	if conn == nil {
 		return errors.New("connection is nil. rejecting")
 	}
 
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 
-	if c.conns == nil {
+	if p.conns == nil {
 		// pool is closed, close passed connection
 		return conn.Close()
 	}
@@ -155,7 +150,7 @@ func (c *Pool) put(conn net.Conn) error {
 	// put the resource back into the pool. If the pool is full, this will
 	// block and the default case will be executed.
 	select {
-	case c.conns <- conn:
+	case p.conns <- conn:
 		return nil
 	default:
 		// pool is full, close passed connection
@@ -163,31 +158,33 @@ func (c *Pool) put(conn net.Conn) error {
 	}
 }
 
-func (c *Pool) Close() {
-	c.mu.Lock()
-	conns := c.conns
-	c.conns = nil
-	c.factory = nil
-	c.mu.Unlock()
+func (p *Pool) Close() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
-	if conns == nil {
+	// guard against previous closure
+	if p.conns == nil {
 		return
 	}
 
-	close(conns)
-	for conn := range conns {
+	close(p.conns)
+	for conn := range p.conns {
 		conn.Close()
 	}
+	// signal to open connections that they cannot be placed back in the pool.
+	p.conns = nil
+	p.factory = nil
 }
 
-func (c *Pool) Len() int {
-	conns, _ := c.getConnsAndFactory()
-	return len(conns)
+func (p *Pool) Len() int {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return len(p.conns)
 }
 
 // newConn wraps a standard net.Conn to a poolConn net.Conn.
-func (c *Pool) wrapConn(conn net.Conn) net.Conn {
-	p := &PoolConn{c: c}
-	p.Conn = conn
-	return p
+func (p *Pool) wrapConn(conn net.Conn) net.Conn {
+	pc := &PoolConn{c: p}
+	pc.Conn = conn
+	return pc
 }
