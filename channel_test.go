@@ -386,3 +386,22 @@ func TestPoolSetCapFull(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestPoolSetCapAfterClose(t *testing.T) {
+	p, err := NewPool(0, 30, factory)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// get/create from the pool
+	conns := make([]net.Conn, MaximumCap)
+	for i := 0; i < MaximumCap; i++ {
+		conn, _ := p.Get(context.Background())
+		conns[i] = conn
+	}
+
+	p.Close()
+
+	// should not panic :)
+	p.SetCap(10)
+}

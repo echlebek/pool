@@ -58,6 +58,10 @@ func NewPool(initialCap, maxCap int, factory Factory) (*Pool, error) {
 func (p *Pool) SetCap(capacity int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if p.conns == nil {
+		// check if the pool is closed
+		return
+	}
 	oldConns := p.conns
 	close(oldConns)
 	p.conns = make(chan net.Conn, capacity)
