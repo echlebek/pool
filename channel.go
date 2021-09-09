@@ -71,7 +71,7 @@ func (p *Pool) SetCap(capacity int) {
 		case p.conns <- c:
 			atomic.AddInt64(&p.size, 1)
 		default:
-			return
+			_ = c.Close()
 		}
 	}
 }

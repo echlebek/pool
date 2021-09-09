@@ -405,3 +405,37 @@ func TestPoolSetCapAfterClose(t *testing.T) {
 	// should not panic :)
 	p.SetCap(10)
 }
+
+func TestPoolSetCapNoLeak(t *testing.T) {
+	p, err := NewPool(0, 30, factory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer p.Close()
+
+	// get/create from the pool
+	conns := make([]net.Conn, MaximumCap)
+	for i := 0; i < MaximumCap; i++ {
+		conn, _ := p.Get(context.Background())
+		conns[i] = conn
+	}
+
+	for i := range conns {
+		conns[i].Close()
+	}
+
+	p.SetCap(15)
+
+	for i := 15; i < MaximumCap; i++ {
+		if _, err := conns[i].Read(make([]byte, 1)); err == nil {
+			t.Fatalf("expected conn to be closed, got %q", err)
+			err := err.(net.Error)
+			if err.Timeout() {
+				t.Error("error should not be a timeout")
+			}
+			if err.Temporary() {
+				t.Error("error should not be temporary")
+			}
+		}
+	}
+}
