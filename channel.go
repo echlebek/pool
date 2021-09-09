@@ -58,8 +58,9 @@ func NewPool(initialCap, maxCap int, factory Factory) (*Pool, error) {
 func (p *Pool) SetCap(capacity int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.conns == nil {
-		// check if the pool is closed
+	if p.conns == nil || cap(p.conns) == capacity {
+		// check if the pool is closed, or SetCap is called with the same cap
+		// as before.
 		return
 	}
 	oldConns := p.conns

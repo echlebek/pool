@@ -34,6 +34,6 @@ func (p *PoolConn) Close() error {
 // MarkUnusable() marks the connection not usable any more, to let the pool close it instead of returning it to pool.
 func (p *PoolConn) MarkUnusable() {
 	p.mu.Lock()
+	defer p.mu.Unlock()
 	p.unusable = true
-	p.mu.Unlock()
 }
