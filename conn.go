@@ -3,6 +3,7 @@ package pool
 import (
 	"net"
 	"sync"
+	"sync/atomic"
 )
 
 // PoolConn is a wrapper around net.Conn to modify the the behavior of
@@ -21,6 +22,8 @@ func (p *PoolConn) Close() error {
 
 	if p.unusable {
 		if p.Conn != nil {
+			// remove it from the conn pool size
+			atomic.AddInt64(&p.c.size, -1)
 			return p.Conn.Close()
 		}
 		return nil
