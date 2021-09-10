@@ -15,7 +15,7 @@ var (
 	MaximumCap = 30
 	network    = "tcp"
 	address    = "127.0.0.1:7777"
-	factory    = func() (net.Conn, error) { return net.Dial(network, address) }
+	factory    = func(context.Context) (net.Conn, error) { return net.Dial(network, address) }
 )
 
 func init() {

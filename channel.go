@@ -21,7 +21,7 @@ type Pool struct {
 }
 
 // Factory is a function to create new connections.
-type Factory func() (net.Conn, error)
+type Factory func(context.Context) (net.Conn, error)
 
 // NewPool returns a new pool based on buffered channels with an initial
 // capacity and maximum capacity. Factory is used when initial capacity is
@@ -42,7 +42,7 @@ func NewPool(initialCap, maxCap int, factory Factory) (*Pool, error) {
 	// create initial connections, if something goes wrong,
 	// just close the pool error out.
 	for i := 0; i < initialCap; i++ {
-		conn, err := factory()
+		conn, err := factory(context.Background())
 		if err != nil {
 			p.Close()
 			return nil, fmt.Errorf("factory is not able to fill the pool: %s", err)
@@ -79,12 +79,12 @@ func (p *Pool) SetCap(capacity int) {
 
 var errNoCapacity = errors.New("no capacity")
 
-func (p *Pool) tryNewConn() (net.Conn, error) {
+func (p *Pool) tryNewConn(ctx context.Context) (net.Conn, error) {
 	if size := atomic.AddInt64(&p.size, 1); size > int64(cap(p.conns)) {
 		atomic.AddInt64(&p.size, -1)
 		return nil, errNoCapacity
 	}
-	conn, err := p.factory()
+	conn, err := p.factory(ctx)
 	if err != nil {
 		atomic.AddInt64(&p.size, -1)
 		return nil, err
@@ -116,7 +116,7 @@ func (p *Pool) Get(ctx context.Context) (net.Conn, error) {
 
 		return p.wrapConn(conn), nil
 	default:
-		conn, err := p.tryNewConn()
+		conn, err := p.tryNewConn(ctx)
 		if err == nil {
 			return p.wrapConn(conn), nil
 		}

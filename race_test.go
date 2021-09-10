@@ -17,7 +17,7 @@ func testPoolRace(t *testing.T) {
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
-	p, err := NewPool(0, 10, func() (net.Conn, error) { return nopCloser{}, nil })
+	p, err := NewPool(0, 10, func(context.Context) (net.Conn, error) { return nopCloser{}, nil })
 	if err != nil {
 		t.Fatal(err)
 	}
